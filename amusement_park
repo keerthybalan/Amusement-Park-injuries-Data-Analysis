@@ -1,0 +1,175 @@
+## load packages
+> library(tidyverse)
+-- Attaching packages --------------------------------------- tidyverse 1.2.1 --
+v ggplot2 3.2.1     v purrr   0.3.2
+v tibble  2.1.3     v dplyr   0.8.3
+v tidyr   1.0.0     v stringr 1.4.0
+v readr   1.3.1     v forcats 0.4.0
+-- Conflicts ------------------------------------------ tidyverse_conflicts() --
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+> library(lubridate)
+
+Attaching package: ‘lubridate’
+
+The following object is masked from ‘package:base’:
+
+    date
+
+> ## get the data
+> ## import the csv file
+> tx_injuries <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-10/tx_injuries.csv")
+Parsed with column specification:
+cols(
+  injury_report_rec = col_double(),
+  name_of_operation = col_character(),
+  city = col_character(),
+  st = col_character(),
+  injury_date = col_character(),
+  ride_name = col_character(),
+  serial_no = col_character(),
+  gender = col_character(),
+  age = col_character(),
+  body_part = col_character(),
+  alleged_injury = col_character(),
+  cause_of_injury = col_character(),
+  other = col_character()
+)
+> safer_parks <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-10/saferparks.csv")
+Parsed with column specification:
+cols(
+  .default = col_character(),
+  acc_id = col_double(),
+  num_injured = col_double(),
+  age_youngest = col_double(),
+  mechanical = col_double(),
+  op_error = col_double(),
+  employee = col_double()
+)
+See spec(...) for full column specifications.
+> ## data examination
+> view(tx_injuries)
+> ##Check body_part
+> length(unique(tx_injuries$body_part))
+[1] 189
+> head(tx_injuries$body_part, n = 10)
+ [1] "Mouth"                      "Knee"                      
+ [3] "Right Shoulder"             "Lower Leg"                 
+ [5] "Head"                       "Bottom of foot"            
+ [7] "Right shoulder, right knee" "Back"                      
+ [9] "Neck and back"              "Left leg"
+ > ##Check ride_name
+> length(unique(tx_injuries$ride_name))
+[1] 252
+> head(tx_injuries$ride_name, n = 20)
+ [1] "I Fly"                     "Gulf Glider"              
+ [3] "Howlin Tornado"            "Scooby Doo Ghost Blasters"
+ [5] "Alien Abduction"           "Go Karts"                 
+ [7] "Gold River Adventure"      "Titan"                    
+ [9] "Wild River"                "Sky Ride 2"               
+[11] "iFly Austin"               "Go Karts"                 
+[13] "LaVibra"                   "Go Kart Track"            
+[15] "Rock 2 Drop 2 Rockwall"    "I Fly"                    
+[17] "Zipline # 6"               "Batman"                   
+[19] "New York Adventure"        "Texas Tumble"
+> ## selecting columns and rename the columns 
+> ## wrangle the first data set of amusement park injuries
+> df_1 <- tx_injuries %>%
++     select(park = name_of_operation, 
++            city, 
++            state = st, 
++            ride = ride_name, 
++            body_part, 
++            injury_type = alleged_injury, 
++            date = injury_date) %>%
++     mutate(date_mdy = mdy(date), 
++            date_serial = as.Date(as.numeric(date), origin = "1899-12-30"), 
++            date = if_else(is.na(date_mdy), date_serial, date_mdy))
+Warning messages:
+1:  349 failed to parse. 
+2: In as.Date(as.numeric(date), origin = "1899-12-30") :
+  NAs introduced by coercion
+> #plot injuries by datw
+> ## plot injuries by date
+> # sum up injuries by date
+> 
+> df_1 %>%
++     count(date) %>%
++     {.} -> to_plot
+> # plot injuries by date
+> to_plot %>%
++     ggplot(aes(x = date, y = n)) + 
++     geom_line() + 
++     theme_bw() + 
++     labs(y = "Number of Injuries") + 
++     guides(color = "none")
+Warning message:
+Removed 1 rows containing missing values (geom_path). 
+> > view(safer_parks)
+> safer_parks %>%
++     filter((!is.na(mechanical) + 
++                 !is.na(op_error) + 
++                 !is.na(employee)) > 1) %>%
++     dim()
+[1]  0 23
+> safer_parks %>% 
++     mutate(state = acc_state, 
++            cause = ifelse(!is.na(mechanical), "mechanical", 
++                           ifelse(!is.na(op_error), "operator error", 
++                                  ifelse(!is.na(employee), "employee error", 
++                                         "other")))) %>% 
++     {.} -> df_2
+> df_2 %>%
++     count(state, cause) %>%
++     spread(cause, n, fill = 0) %>%
++     mutate(total = `employee error` + 
++                mechanical + 
++                `operator error` + 
++                other) %>%
++     arrange(desc(total)) %>%
++     knitr::kable()
+
+
+|state | employee error| mechanical| operator error| other| total|
+|:-----|--------------:|----------:|--------------:|-----:|-----:|
+|CA    |              1|        131|             25|  2840|  2997|
+|PA    |              9|         31|             20|  1823|  1883|
+|FL    |              0|         32|              6|   936|   974|
+|TX    |              0|          5|              3|   543|   551|
+|NJ    |              3|         10|              1|   506|   520|
+|OK    |              3|         31|             18|   352|   404|
+|NH    |              0|         13|              2|   196|   211|
+|KY    |              0|          4|              1|   113|   118|
+|NC    |              1|         12|              7|    78|    98|
+|MI    |              0|          8|              5|    84|    97|
+|IL    |              0|         16|              6|    68|    90|
+|AZ    |              0|          4|              0|    84|    88|
+|WI    |              0|          7|              6|    47|    60|
+|OH    |              0|          4|              8|    35|    47|
+|IA    |              3|          8|              2|    19|    32|
+|ME    |              1|          4|              4|    23|    32|
+|MD    |              0|          4|              1|    20|    25|
+|TN    |              1|          4|              0|    18|    23|
+|MA    |              0|          5|              2|     8|    15|
+|WA    |              0|          9|              0|     6|    15|
+|CO    |              0|          4|              3|     6|    13|
+|CT    |              0|          5|              0|     6|    11|
+|WV    |              0|          4|              4|     3|    11|
+|AR    |              0|          1|              3|     4|     8|
+|MO    |              0|          3|              0|     2|     5|
+|NY    |              0|          1|              0|     3|     4|
+|SC    |              0|          2|              1|     0|     3|
+|MN    |              0|          1|              0|     1|     2|
+|MT    |              0|          1|              0|     1|     2|
+|NM    |              0|          2|              0|     0|     2|
+|AK    |              0|          1|              0|     0|     1|
+|GA    |              0|          1|              0|     0|     1|
+|ID    |              0|          0|              1|     0|     1|
+|KS    |              0|          1|              0|     0|     1|
+|NE    |              0|          1|              0|     0|     1|
+|NV    |              0|          0|              0|     1|     1|
+|OR    |              0|          1|              0|     0|     1|
+|UT    |              0|          1|              0|     0|     1|
+|VA    |              0|          1|              0|     0|     1|
+|WY    |              0|          1|              0|     0|     1|
+> 
