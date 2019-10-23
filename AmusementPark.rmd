@@ -1,0 +1,96 @@
+---
+title: "Amusement Park"
+output:
+  pdf_document: default
+    
+  word_document: default
+  html_document: default
+---
+# Introduction
+This report extracts and analyse the data from [tidytuesday 2019-09-10 exercise](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-09-10)
+
+
+# Texas Injuries
+Load packages
+```{r message=FALSE}
+library(tidyverse)
+library(lubridate)
+```
+Get the data from csv file
+```{r message=FALSE}
+tx_injuries <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-10/tx_injuries.csv")
+```
+Data examination
+```{r}
+head(tx_injuries)
+```
+Check relative injuries to different body_part
+```{r}
+head(unique(tx_injuries$body_part))
+length(unique(tx_injuries$body_part))
+```
+Check rides
+```{r}
+head(unique(tx_injuries$ride_name))
+length(unique(tx_injuries$ride_name))
+```
+I find that the columns body_part and ride_name do not have any generic discrete variables. It would be difficult to convert these columns into desired categorical variables.The column injuries by date seems to be an ideal candidate for analysis. In next steps, I select and rename required columns and plot injuries by date.
+``` {r}
+tx_injuries_selected <- tx_injuries %>%
+     select(park = name_of_operation, 
+            city, 
+            state = st, 
+            ride = ride_name, 
+            body_part, 
+            injury_type = alleged_injury, 
+            date = injury_date) 
+head(tx_injuries_selected)
+```
+Wrangle the date column
+```{r}
+dates_formatted = mdy(tx_injuries_selected$date)
+dates_base_1899 = as.Date(as.numeric(tx_injuries_selected$date), origin = "1899-12-30")
+date_wrangled = if_else(is.na(dates_formatted), dates_base_1899, dates_formatted)
+tx_injuries_wrangled <- tx_injuries_selected %>% mutate(date = date_wrangled)
+head(tx_injuries_wrangled)
+```
+Find injuries by date
+```{r}
+injuries_vs_date <- tx_injuries_wrangled %>% count(date)
+head(injuries_vs_date)
+```
+Plot injuries by date
+``` {r}
+injuries_vs_date %>% ggplot(aes(x = date, y = n)) + 
+      geom_line() + 
+      theme_bw() + 
+      labs(y = "Number of Injuries") + 
+      guides(color = "none")
+```
+\newline
+
+It can be observed that during the middle of every year (late spring and summer), there is a spike in the number of injuries.
+# Safer parks
+The data set is required to be tranformed into a tidy format. The package dplyr is required for sorting, filtering and summarizing data in this set.
+```{r message=FALSE}
+library("dplyr")
+library("tidytext")
+safer_parks <-
+  readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-10/saferparks.csv")
+head(safer_parks)
+```
+I need to restructure injury description as one token per row format, removing rows with stopwords. Finally I filter them into six possible body part buckets.
+``` {r}
+body_parts <- tolower(c("HEAD", "BACK", "EAR", "HIP", "ARM", "LEG"))
+body_parts_freq <- safer_parks %>%
+  unnest_tokens(output=word, input=injury_desc) %>% #
+  anti_join(get_stopwords()) %>% # Remove stopwords
+  filter(word %in% body_parts) %>% # Filter to rows with body part
+  mutate(word = toupper(word)) %>% # Convert all string variables in word to upper case
+  distinct(word, .keep_all = TRUE) %>% # Remove duplicate rows based on word
+  mutate(word=as.factor(word)) %>% # Creating a new word datacolumn and categorizing the data into levels
+  group_by(word) %>% # Converts word to a grouped table 
+  summarise(total = sum(num_injured))
+head(body_parts_freq)
+```
+It can be observed that head and back injuries are proportianately higher compared to other body part injuries.
